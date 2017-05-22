@@ -51,32 +51,42 @@ class ExportHandler(webapp2.RequestHandler):
 
         #convert the file id to an int
         for v in files:
-            v[3] = int(v[3])
+            v[1] = int(v[1])
 
         #sort by file id (index:3)
-        files = sorted(files, key=itemgetter(3))
-        rows = []
+        files = sorted(files, key=itemgetter(1))
+        #rows = []
         for f in files:
-            filename = path + f[6]
+            filename = path + f[2]
             raw = open(filename, 'r')
             reader = records.RecordsReader(raw)
+
+            self.response.headers['Content-Type'] = 'text/json'
+            self.response.headers['Content-Disposition'] = str('attachment; filename="export.json"')
+
             for record in reader:
                 entity_proto = entity_pb.EntityProto(contents=record)
                 entity = datastore.Entity.FromPb(entity_proto)
-                header = []
-                row = []
-                for k,v in entity.items():
-                    header.append(k)
-                    row.append(v)
-                rows.append(row)
+                row = {}
+                for k, v in entity.items():
+                    valueType = type(v)
 
+                    res = " "
 
-        self.response.headers['Content-Type'] = 'text/csv';
-        self.response.headers['Content-Disposition'] = str('attachment; filename="export.csv"');
+                    if valueType is unicode :
+                        res = v
+                    elif valueType is bool :
+                        res = "1" if v else "0"
+                    elif valueType.__name__ == "User" :
+                        res = str(v)
+                    elif valueType is list :
+                        res = map(lambda entry : str(entry), v)
+                    else :
+                        print valueType
 
-        self.response.write(join(header) + "\n")
-        for row in rows:
-            self.response.write(join(row) + "\n")
+                    row[k] = res
+                self.response.write(json.dumps(row) + ",\n")
+
 
 def groupFiles(path):
     "processes the path and returns all data files grouped by export name"
