@@ -4,11 +4,17 @@ Follow Greg Bayers instructions here: http://gbayer.com/big-data/app-engine-data
 
 Once you have the back-up files simply copy them to a folder named "data" at the site root.
 
-Then, Using the google app engine desktop launcher start the app up. You should see a list of avaliable exports, Click one to create the CSV. 
+Then, Using the google app engine desktop launcher start the app up. You should see a list of avaliable exports, Click one to create the JSON. 
 
 ###Requirements:
 
 google app engine desktop environment
+
+```pip install GoogleAppEngineCloudStorageClient -t lib```
+
+### Run
+
+```dev_appserver.py --storage_path=./storage app.yaml```
 
 
 ###Warning:

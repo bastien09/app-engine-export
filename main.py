@@ -17,12 +17,18 @@
 import webapp2
 import json
 import sys
+import datetime
+import logging
 from google.appengine.api.files import records
 from google.appengine.datastore import entity_pb
 from google.appengine.api import datastore
 from os import listdir
 from os.path import isfile, join
 from operator import itemgetter, attrgetter
+import cloudstorage as gcs
+
+reload(sys)
+sys.setdefaultencoding('utf-8')
 
 class MainHandler(webapp2.RequestHandler):
     def get(self):
@@ -49,43 +55,60 @@ class ExportHandler(webapp2.RequestHandler):
         files = groupFiles(path)
         files = files[ename]
 
+        outputFile = gcs.open("/export/export.json", 'w', content_type='text/plain')
+
+
         #convert the file id to an int
         for v in files:
             v[1] = int(v[1])
 
         #sort by file id (index:3)
         files = sorted(files, key=itemgetter(1))
-        #rows = []
+        rows = []
         for f in files:
             filename = path + f[2]
             raw = open(filename, 'r')
             reader = records.RecordsReader(raw)
-
-            self.response.headers['Content-Type'] = 'text/json'
-            self.response.headers['Content-Disposition'] = str('attachment; filename="export.json"')
 
             for record in reader:
                 entity_proto = entity_pb.EntityProto(contents=record)
                 entity = datastore.Entity.FromPb(entity_proto)
                 row = {}
                 for k, v in entity.items():
-                    valueType = type(v)
+                    row[k] = extractValue(v)
+                row["DSKey"] = entity.key().id()
+                rows.append(row)
+            outputFile.write(json.dumps(rows))
 
-                    res = " "
+        outputFile.close()
+        self.response.write("<h1>Done</h1>")
+        self.response.write("<h3>Your export file is ./storage/**/export.json</h3>")
 
-                    if valueType is unicode :
-                        res = v
-                    elif valueType is bool :
-                        res = "1" if v else "0"
-                    elif valueType.__name__ == "User" :
-                        res = str(v)
-                    elif valueType is list :
-                        res = map(lambda entry : str(entry), v)
-                    else :
-                        print valueType
+def extractValue(v):
+    valueType = type(v)
 
-                    row[k] = res
-                self.response.write(json.dumps(row) + ",\n")
+    res = " "
+
+    if valueType is unicode:
+        res = v
+    elif valueType is long:
+        res = str(v)
+    elif  valueType is datetime.datetime:
+        res = v.strftime("%Y-%m-%d %H:%M:%S")
+    elif valueType is bool:
+        res = "1" if v else "0"
+    elif valueType.__name__ == "User":
+        res = str(v)
+    elif valueType.__name__ == "Key":
+        res = v.id()
+    elif valueType.__name__ == "Text":
+        res = str(v)
+    elif valueType is list:
+        res = map(lambda entry: extractValue(entry), v)
+    else :
+        print valueType
+
+    return res
 
 
 def groupFiles(path):
